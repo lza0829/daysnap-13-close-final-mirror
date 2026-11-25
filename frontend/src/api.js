@@ -36,4 +36,13 @@ export const api = {
   抽取: (营业日) => 请求("/抽取", { method: "POST", body: JSON.stringify({ 营业日 }) }),
   回放: (营业日) => 请求("/回放", { method: "POST", body: JSON.stringify({ 营业日 }) }),
   重置: () => 请求("/重置业务库", { method: "POST", body: "{}" }),
+  销户: (账户键, 销户营业日) =>
+    请求("/销户", { method: "POST", body: JSON.stringify({ 账户键, 销户营业日 }) }),
+  解销: (账户键) => 请求("/解销", { method: "POST", body: JSON.stringify({ 账户键 }) }),
+  善后结清: (账户键) =>
+    请求(`/善后结清/${encodeURIComponent(账户键)}`, { method: "POST" }),
+  终镜: () => 请求("/销户终镜"),
+  核证: (账户键) => 请求(`/销户终镜/核证/${encodeURIComponent(账户键)}`),
+  善后: (账户键 = "") => 请求(`/善后旁置${账户键 ? `?账户键=${encodeURIComponent(账户键)}` : ""}`),
+  清算: () => 请求("/清算手续"),
 };

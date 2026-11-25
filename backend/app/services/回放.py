@@ -24,7 +24,7 @@ def 回放核对(营业日: str, 批次编号: str = "") -> dict[str, Any]:
             阈值 = int(参.get("跳变阈值分", "0") or "0")
         except ValueError:
             阈值 = 0
-        账户们 = [dict(r) for r in conn.execute("SELECT * FROM 账户 WHERE 状态='正常'")]
+        账户们 = [dict(r) for r in conn.execute("SELECT * FROM 账户 ORDER BY 账户键")]
         相符 = 0
         差额数 = 0
         跳变数 = 0

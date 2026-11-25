@@ -89,13 +89,42 @@ CREATE TABLE IF NOT EXISTS 装载批次 (
   时刻 TEXT NOT NULL,
   报告 TEXT NOT NULL DEFAULT '{}'
 );
+CREATE TABLE IF NOT EXISTS 销户终镜 (
+  凭证编号 TEXT PRIMARY KEY,
+  账户键 TEXT NOT NULL,
+  销户营业日 TEXT NOT NULL,
+  终态余额 INTEGER NOT NULL,
+  来源快照键 TEXT NOT NULL,
+  抽取批次编号 TEXT NOT NULL,
+  状态 TEXT NOT NULL DEFAULT '有效',
+  时刻 TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS 善后旁置簿 (
+  旁置编号 TEXT PRIMARY KEY,
+  账户键 TEXT NOT NULL,
+  营业日 TEXT NOT NULL,
+  发生时 TEXT NOT NULL,
+  变动额 INTEGER NOT NULL,
+  摘要 TEXT NOT NULL DEFAULT '',
+  原流水号 TEXT NOT NULL DEFAULT '',
+  原批次编号 TEXT NOT NULL DEFAULT '',
+  载荷 TEXT NOT NULL,
+  状态 TEXT NOT NULL DEFAULT '待善后',
+  时刻 TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS 清算手续 (
+  手续编号 TEXT PRIMARY KEY,
+  账户键 TEXT NOT NULL,
+  原凭证编号 TEXT NOT NULL,
+  处置 TEXT NOT NULL,
+  时刻 TEXT NOT NULL
+);
 """
 
 空桩模块 = [
     "开户首日无前日",
     "同日重复抽取幂等",
     "流水迟到补抽",
-    "销户终镜",
     "负余额闸",
     "币种隔离",
     "半截抽取回滚",

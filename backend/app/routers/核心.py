@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.db import 夹具目录, 连接
-from app.services import 回放, 抽取, 目录, 装载
+from app.services import 回放, 抽取, 目录, 装载, 销户
 
 路由 = APIRouter(prefix="/api")
 
@@ -15,6 +15,17 @@ class 装载请求(BaseModel):
 
 class 营业日请求(BaseModel):
     营业日: str
+    批次编号: str = ""
+
+
+class 销户请求(BaseModel):
+    账户键: str
+    销户营业日: str
+    批次编号: str = ""
+
+
+class 账户请求(BaseModel):
+    账户键: str
     批次编号: str = ""
 
 
@@ -129,6 +140,55 @@ def 列旁置():
         conn.close()
 
 
+@路由.get("/销户终镜")
+def 列销户终镜(账户键: str = ""):
+    return 销户.列终镜() if not 账户键 else [m for m in 销户.列终镜() if m["账户键"] == 账户键]
+
+
+# 注意：Starlette PARAM_REGEX 仅接受 ASCII 路径参数名，中文参数名（如 {账户键}）
+# 会被当作字面量导致静默 404，故路径参数一律用 ASCII 名，函数内再映射。
+@路由.get("/销户终镜/核证/{account}")
+def 核证终镜(account: str):
+    try:
+        return 销户.终镜核证(account)
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e
+
+
+@路由.get("/善后旁置")
+def 列善后旁置(账户键: str = ""):
+    return 销户.列善后(账户键)
+
+
+@路由.get("/清算手续")
+def 列清算手续():
+    return 销户.列清算()
+
+
+@路由.post("/销户")
+def 执行销户(体: 销户请求):
+    try:
+        return 销户.销户手续(体.账户键, 体.销户营业日, 体.批次编号)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@路由.post("/解销")
+def 执行解销(体: 账户请求):
+    try:
+        return 销户.解销手续(体.账户键, 体.批次编号)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@路由.post("/善后结清/{account}")
+def 执行善后结清(account: str):
+    try:
+        return 销户.结清手续(account)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
 def _列批(表: str):
     conn = 连接()
     try:
@@ -179,9 +239,9 @@ class 夹具请求(BaseModel):
     名: str
 
 
-@路由.post("/装载夹具/{名}")
-def 装载夹具路径(名: str):
-    return _装载夹具文件(名)
+@路由.post("/装载夹具/{name}")
+def 装载夹具路径(name: str):
+    return _装载夹具文件(name)
 
 
 @路由.post("/装载夹具")
@@ -229,8 +289,12 @@ def 重置():
             "跳变记录",
             "旁置簿",
             "装载批次",
+            "销户终镜",
+            "善后旁置簿",
+            "清算手续",
         ):
             conn.execute(f"DELETE FROM {t}")
+        conn.execute("UPDATE 账户 SET 状态='正常'")
         conn.commit()
         return {"完成": True, **目录.总览()}
     finally:

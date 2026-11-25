@@ -3,17 +3,23 @@ import uuid
 from typing import Any
 
 from app.db import 连接
+from app.modules.销户终镜 import 口径, 装载写闸, 记善后
 from app.services.时间 import 此刻, 标准化营业日
 
 
 def 装载流水(事件: list[dict[str, Any]], 批次编号: str = "") -> dict:
-    """装载账户变动流水。金额单位：分。"""
+    """装载账户变动流水。金额单位：分。
+
+    口径乙（善后旁置轨）：销户账户的合法迟到流水不进正式变动流水/净额，
+    改落善后旁置簿；正式写路径冻结，终镜不变。
+    """
     if not 事件:
         raise ValueError("流水列表为空")
     批 = 批次编号.strip() or f"装载-{uuid.uuid4().hex[:10]}"
     conn = 连接()
     入账 = 0
     旁置 = 0
+    善后 = 0
     try:
         for raw in 事件:
             流水号 = str(raw.get("流水号") or "").strip() or f"流-{uuid.uuid4().hex[:12]}"
@@ -25,7 +31,7 @@ def 装载流水(事件: list[dict[str, Any]], 批次编号: str = "") -> dict:
                 )
                 旁置 += 1
                 continue
-            户 = conn.execute("SELECT 账户键 FROM 账户 WHERE 账户键=?", (账户键,)).fetchone()
+            户 = conn.execute("SELECT 账户键, 状态 FROM 账户 WHERE 账户键=?", (账户键,)).fetchone()
             if not 户:
                 conn.execute(
                     "INSERT INTO 旁置簿(原因, 账户键, 营业日, 载荷, 时刻) VALUES (?,?,?,?,?)",
@@ -43,6 +49,11 @@ def 装载流水(事件: list[dict[str, Any]], 批次编号: str = "") -> dict:
                 )
                 旁置 += 1
                 continue
+            # 正式写路径冻结：销户账户走善后旁置（同口径全局唯一分叉点）
+            if 装载写闸(conn, 账户键):
+                记善后(conn, {**raw, "流水号": 流水号, "变动额": 变动额}, 账户键, 营业日, 批)
+                善后 += 1
+                continue
             发生时 = str(raw.get("发生时") or f"{营业日}T12:00:00Z")
             摘要 = str(raw.get("摘要") or "")
             已有 = conn.execute("SELECT 流水号 FROM 变动流水 WHERE 流水号=?", (流水号,)).fetchone()
@@ -59,7 +70,13 @@ def 装载流水(事件: list[dict[str, Any]], 批次编号: str = "") -> dict:
                 (流水号, 账户键, 营业日, 发生时, 变动额, 摘要, 批, "已入账"),
             )
             入账 += 1
-        报告 = {"入账": 入账, "旁置": 旁置, "合计": len(事件)}
+        报告 = {
+            "入账": 入账,
+            "旁置": 旁置,
+            "善后旁置": 善后,
+            "合计": len(事件),
+            "口径": 口径,
+        }
         conn.execute(
             "INSERT INTO 装载批次(编号, 时刻, 报告) VALUES (?,?,?)",
             (批, 此刻(), json.dumps(报告, ensure_ascii=False)),

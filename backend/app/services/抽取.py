@@ -3,6 +3,7 @@ import uuid
 from typing import Any
 
 from app.db import 连接
+from app.modules.销户终镜 import 快照写闸
 from app.services.时间 import 此刻, 标准化营业日
 
 
@@ -28,7 +29,7 @@ def 日终抽取(营业日: str, 批次编号: str = "") -> dict[str, Any]:
         缺前日 = 参.get("缺前日策略", "以零为开端")
         账户们 = [
             dict(r)
-            for r in conn.execute("SELECT * FROM 账户 WHERE 状态='正常' ORDER BY 账户键")
+            for r in conn.execute("SELECT * FROM 账户 ORDER BY 账户键")
         ]
         写入 = 0
         盖写 = 0
@@ -39,6 +40,9 @@ def 日终抽取(营业日: str, 批次编号: str = "") -> dict[str, Any]:
             开户日 = 户["开户营业日"]
             if 日 < 开户日:
                 continue
+            # 终镜写闸：销户账户拒绝任何抽取/盖写，失败闭整票回滚。
+            # 先于读写判定，销户日重抽与后续日抽取在此一律 400。
+            快照写闸(conn, 账户键, 日)
             前 = _前日(日)
             前日快照 = conn.execute(
                 "SELECT 余额 FROM 周期快照 WHERE 账户键=? AND 营业日=? AND 状态='有效'",
